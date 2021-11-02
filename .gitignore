@@ -1,0 +1,8 @@
+# Mac stuff.
+.DS_Store
+
+# NPM stuff.
+/node_modules
+
+# Other stuff.
+*.log
