@@ -49,6 +49,13 @@ async function addFrameNodeImageFillToFrameNodes(nodes: Array<FrameNode>) {
     for (const node of nodes) {
         const framePNG = await convertFrameNodeToImageFill(node)
         addFillToNode(node, framePNG)
+        await hideAllNodeChildren(node)
+    }
+}
+
+async function hideAllNodeChildren(node) {
+    for (const n of node.children) {
+        n.visible = false
     }
 }
 
