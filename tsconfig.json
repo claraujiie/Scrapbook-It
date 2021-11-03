@@ -1,15 +1,17 @@
 {
-  "compilerOptions": {
+    "compilerOptions": {
         "outDir": "dist/",
-        "noImplicitAny": true,
+        "noImplicitAny": false,
         "module": "es6",
         "target": "es5",
         "allowJs": true,
         "moduleResolution": "node",
-        "lib": ["es6"],
+        "lib": [
+            "es6"
+        ],
         "typeRoots": [
             "./node_modules/@types",
             "./node_modules/@figma"
         ],
-  },
+    },
 }
