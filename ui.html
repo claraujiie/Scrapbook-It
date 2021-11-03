@@ -49,5 +49,6 @@
       const newBytes = await encode(canvas, ctx, imageData)
   
       window.parent.postMessage({pluginMessage: newBytes}, '*')
+      canvas.remove()
     }
   </script>

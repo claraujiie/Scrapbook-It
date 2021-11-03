@@ -24,8 +24,12 @@ async function frameToPNG(node) {
     node.fills = newFills
 }
 
-Promise
-    .all(figma.currentPage.selection
-        .filter(node => node.type == 'FRAME')
-        .map(selected => frameToPNG(selected)))
-    .then(() => figma.closePlugin())
+async function convertAllImages(nodes) {
+    for (const node of nodes) {
+        if (node.type == 'FRAME') {
+            await frameToPNG(node)
+        }
+    }
+}
+
+convertAllImages(figma.currentPage.children).then(() => figma.closePlugin())
