@@ -1,161 +1,78 @@
-// We only care about FrameNodes for this particular plugin,
-// but I'm pretty sure we could remove the restriction and
+import { makeImage, makeFrame, makeVect2 } from "./lib/factory"
+import { RasterizeMessage } from "./lib/model"
+import { getRasterizeMessages } from "./lib/image"
 
-import { fileURLToPath } from "url"
-
-// it would work on any node.
-async function convertFrameNodeToImageFill(frame: FrameNode): Promise<ImagePaint> {
-    // We need the UI because it gives us access to a lot
-    // more Javascript features that are not allowed in the
-    // Figma plugin sandbox.
-    figma.showUI(__html__, { visible: false })
-
-    // Convert the frame and all its contents into bytes.
-    const frameBytes = await frame.exportAsync()
-
-    // We need to do some byte processing so we need to
-    // send them out to the UI for those added Javaascript
-    // features.
-    figma.ui.postMessage(frameBytes)
-
-    // We need to define a message handler for messages 
-    // sent back to us by the UI. This should be the PNG
-    // bytes.
-    const pngBytes: Uint8Array = await new Promise((resolve, reject) => {
-        figma.ui.onmessage = value => resolve(value as Uint8Array)
-    })
-
-    // We need to create a new IMAGE fill that contains
-    // our new PNG. This fill will get added to the frame.
-    return {
-        type: "IMAGE",
-        scaleMode: "CROP",
-        imageHash: figma.createImage(pngBytes).hash
-    }
-}
-
-// Helper function that takes a node and ADDs a fill. This
-// fill will be added at the top of the list of existing
-// fills with respect to visibility.
-function addFillToNode(node, fill: Paint): void {
-    const updatedFills: Array<Paint> = []
-    for (const paint of node.fills) {
-        updatedFills.push(paint)
-    }
-    updatedFills.push(fill)
-    node.fills = updatedFills
-}
-
-// For each FrameNode, convert it to a PNG and set the image
-// to an IMAGE fill.
-async function addFrameNodeImageFillToFrameNodes(nodes: Array<FrameNode>) {
-    for (const node of nodes) {
-        const framePNG = await convertFrameNodeToImageFill(node)
-        addFillToNode(node, framePNG)
-        await hideAllNodeChildren(node)
-    }
-}
-
-async function hideAllNodeChildren(node) {
-    for (const n of node.children) {
-        n.visible = false
-    }
-}
-
-interface SlideData {
-    fill: ImagePaint
-    locX: number
-    locY: number
-    width: number
-    height: number
-}
-
-async function getSlideData(node: FrameNode): Promise<SlideData> {
-    const imageFill = await convertFrameNodeToImageFill(node)
-    return {
-        fill: imageFill,
-        locX: node.x,
-        locY: node.y,
-        width: node.width,
-        height: node.height
-    }
-}
-
-async function getAllSlideData(nodes: Array<FrameNode>): Promise<Array<SlideData>> {
-    const slideData: Array<SlideData> = []
-    for (const node of nodes) {
-        slideData.push(await getSlideData(node))
-    }
-    return slideData
-}
-
-async function main() {
-    const allFrameNodes: Array<FrameNode> = figma.currentPage.children
+(async function () {
+    // We will only act on FrameNodes that are direct children to the
+    // current page.
+    const frameNodes: Array<FrameNode> = figma.currentPage.children
         .filter(node => node.type == 'FRAME')
         .sort((a, b) => a.x - b.x) as Array<FrameNode>
 
-    const allSlideDatas: Array<SlideData> = await getAllSlideData(allFrameNodes)
+    const rasterizeMessages: Array<RasterizeMessage> = await getRasterizeMessages(frameNodes)
 
-    const scrapbook: PageNode = figma.createPage()
+    // To keep everything separate, we will add the rasterized FrameNode
+    // images to a new, more disposable page.
+    const newPage = figma.createPage()
+    // IMPORTANT: We must make the page we just created the current
+    // page so that we can connection Reactions later. If we do not,
+    // the Reactions will not be able to find the nodes referenced in
+    // the Reactions.
+    figma.currentPage = newPage
 
-    for (let i = 0; i < allSlideDatas.length; i++) {
-        const current = allSlideDatas[i]
+    for (let i = 0; i < rasterizeMessages.length; i++) {
+        const { x, y, width, height } = rasterizeMessages[i].node
+        const paint = rasterizeMessages[i].paint
 
-        const frame = figma.createFrame()
-        frame.x = current.locX
-        frame.y = current.locY
-        frame.clipsContent = false
-        frame.resize(current.width, current.height)
-        scrapbook.appendChild(frame)
+        // for every rasterized image, we want to represent it within
+        // a new frame.
+        const frame = makeFrame(makeVect2(x, y), makeVect2(width, height), false, 'frame' + i)
+        newPage.appendChild(frame)
 
-        // Last first
-        if (i < allSlideDatas.length - 1) {
-            const next = allSlideDatas[i + 1]
-            // add the next image
-            const slide = figma.createRectangle()
-            slide.name = "rect" + (i + 1)
-            slide.x = 0
-            slide.y = 0
-            slide.resize(next.width, next.height)
-            slide.fills = [next.fill]
-            frame.appendChild(slide)
+        // If we are not on the last rasterized iamge, we need to
+        // take into account NEXT images when building our frame.
+        if (i < rasterizeMessages.length - 1) {
+            const nextIdx = i + 1
+            const { width, height } = rasterizeMessages[nextIdx].node
+            const paint = rasterizeMessages[nextIdx].paint
+            frame.appendChild(makeImage(paint, makeVect2(0, 0), makeVect2(width, height), 'image' + nextIdx))
         }
 
-        const slide = figma.createRectangle()
-        slide.name = "rect" + i
-        slide.x = 0
-        slide.y = 0
-        slide.resize(current.width, current.height)
-        slide.fills = [current.fill]
-        frame.appendChild(slide)
+        frame.appendChild(makeImage(paint, makeVect2(0, 0), makeVect2(width, height), 'image' + i))
 
-        // First last
+        // If we are past the first rasterized image, that means we now
+        // have to take into account PREVIOUS images when we build our
+        // frame.
         if (i > 0) {
-            const previous = allSlideDatas[i - 1]
-            // add a squished previous frame
-            const squeezeWdith = previous.width / 12
-            const squished = figma.createRectangle()
-            squished.name = "rect" + (i - 1)
-            squished.x = -(squeezeWdith + 20) // move the squish out of frame bounds
-            squished.y = 0
-            squished.resize(squeezeWdith, previous.height)
-            squished.fills = [previous.fill]
-            frame.appendChild(squished)
+            const prevIdx = i - 1
+            const { width, height } = rasterizeMessages[prevIdx].node
+            const paint = rasterizeMessages[prevIdx].paint
+
+            const squeezedWidth = width / 12
+            const padding = 20
+            frame.appendChild(makeImage(paint, makeVect2(-(squeezedWidth + padding), 0), makeVect2(squeezedWidth, height), 'image' + prevIdx))
         }
     }
 
-    figma.currentPage = scrapbook
+    // Get all the FrameNodes from our new page. We will only connect
+    // FrameNodes to each other with Reactions.
+    const newFrames = newPage.children
+        .filter(node => node.type == 'FRAME') as Array<FrameNode>
 
-    // add transitions
-    const frames = scrapbook.children as Array<FrameNode>
-    for (let i = 0; i < frames.length - 1; i++) {
-        const currentFrame = frames[i]
-        const nextFrame = frames[i + 1]
+    // We only need to loop up to len - 1 because the last node will
+    // not have any following nodes to connect to. len - 1 also ensures
+    // use that we always have a "next".
+    for (let i = 0; i < newFrames.length - 1; i++) {
+        const currFrame = newFrames[i]
+        const nextFrame = newFrames[i + 1]
+
         if (i == 0) {
-            scrapbook.flowStartingPoints = [{ nodeId: currentFrame.id, name: "Eeyore's Memories" }]
+            newPage.flowStartingPoints = [{
+                nodeId: currFrame.id,
+                name: "Start Slideshow"
+            }]
         }
-
-        const reaction: Reaction = {
+        currFrame.reactions = [{
             action: {
                 type: "NODE",
                 destinationId: nextFrame.id,
@@ -172,29 +89,6 @@ async function main() {
             trigger: {
                 type: "ON_CLICK"
             }
-        }
-        currentFrame.reactions = [reaction]
+        }]
     }
-}
-
-
-main().then(() => figma.closePlugin())
-
-//addFrameNodeImageFillToFrameNodes(allFrameNodes).then(() => figma.closePlugin())
-
-
-// sort by x then y
-// order frames by increasing x and increasing y
-
-//  Page
-//      0: Frame (start)
-//          Rect <- image 0
-//          Rect <- image 1
-//      1: Frame
-//          Rect <- image 0 (squish)
-//          Rect <- image 1
-//          Rect <- image 2
-//      2: Frame
-//          Rect <- image 1 (squish)
-//          Rect <- image 2
-//          Rect <- image 3
+})().then(() => figma.closePlugin())
