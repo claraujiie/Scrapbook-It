@@ -1,5 +1,8 @@
 // We only care about FrameNodes for this particular plugin,
 // but I'm pretty sure we could remove the restriction and
+
+import { fileURLToPath } from "url"
+
 // it would work on any node.
 async function convertFrameNodeToImageFill(frame: FrameNode): Promise<ImagePaint> {
     // We need the UI because it gives us access to a lot
@@ -59,5 +62,57 @@ async function hideAllNodeChildren(node) {
     }
 }
 
-const allFrameNodes = figma.currentPage.children.filter(node => node.type == 'FRAME') as Array<FrameNode>
+async function createSlide(scrapbook: PageNode, x: number, y: number, fill: ImagePaint) {
+
+}
+
+const scrapbook = figma.createPage()
+
+interface SlideData {
+    fill: ImagePaint
+    locX: number
+    locY: number
+    width: number
+    height: number
+}
+
+async function getSlideData(node: FrameNode): Promise<SlideData> {
+    const imageFill = await convertFrameNodeToImageFill(node)
+    return {
+        fill: imageFill,
+        locX: node.x,
+        locY: node.y,
+        width: node.width,
+        height: node.height
+    }
+}
+
+async function getAllSlideData(nodes: Array<FrameNode>): Promise<Array<SlideData>> {
+    return Promise.all(nodes.map(node => getSlideData(node)))
+}
+
+const allFrameNodes = figma.currentPage.children
+    .filter(node => node.type == 'FRAME')
+    .sort((a, b) => a.x - b.x) as Array<FrameNode>
+
+for (const node of allFrameNodes) {
+    console.log(node, node.x)
+}
 addFrameNodeImageFillToFrameNodes(allFrameNodes).then(() => figma.closePlugin())
+
+
+// sort by x then y
+// order frames by increasing x and increasing y
+
+//  Page
+//      0: Frame (start)
+//          Rect <- image 0
+//          Rect <- image 1
+//      1: Frame
+//          Rect <- image 0 (squish)
+//          Rect <- image 1
+//          Rect <- image 2
+//      2: Frame
+//          Rect <- image 1 (squish)
+//          Rect <- image 2
+//          Rect <- image 3
