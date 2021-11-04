@@ -62,12 +62,6 @@ async function hideAllNodeChildren(node) {
     }
 }
 
-async function createSlide(scrapbook: PageNode, x: number, y: number, fill: ImagePaint) {
-
-}
-
-const scrapbook = figma.createPage()
-
 interface SlideData {
     fill: ImagePaint
     locX: number
@@ -88,17 +82,34 @@ async function getSlideData(node: FrameNode): Promise<SlideData> {
 }
 
 async function getAllSlideData(nodes: Array<FrameNode>): Promise<Array<SlideData>> {
-    return Promise.all(nodes.map(node => getSlideData(node)))
+    const slideData: Array<SlideData> = []
+    for (const node of nodes) {
+        slideData.push(await getSlideData(node))
+    }
+    return slideData
 }
 
-const allFrameNodes = figma.currentPage.children
-    .filter(node => node.type == 'FRAME')
-    .sort((a, b) => a.x - b.x) as Array<FrameNode>
+async function main() {
+    const allFrameNodes: Array<FrameNode> = figma.currentPage.children
+        .filter(node => node.type == 'FRAME')
+        .sort((a, b) => a.x - b.x) as Array<FrameNode>
 
-for (const node of allFrameNodes) {
-    console.log(node, node.x)
+    const allSlideDatas: Array<SlideData> = await getAllSlideData(allFrameNodes)
+
+    const scrapbook: PageNode = figma.createPage()
+    for (const data of allSlideDatas) {
+        const slide = figma.createRectangle()
+        slide.x = data.locX
+        slide.y = data.locY
+        slide.resize(data.width, data.height)
+        slide.fills = [data.fill]
+        scrapbook.appendChild(slide)
+    }
 }
-addFrameNodeImageFillToFrameNodes(allFrameNodes).then(() => figma.closePlugin())
+
+main().then(() => figma.closePlugin())
+
+//addFrameNodeImageFillToFrameNodes(allFrameNodes).then(() => figma.closePlugin())
 
 
 // sort by x then y
