@@ -98,7 +98,6 @@ async function main() {
 
     const scrapbook: PageNode = figma.createPage()
 
-    let prevRect: RectangleNode = null
     for (let i = 0; i < allSlideDatas.length; i++) {
         const current = allSlideDatas[i]
 
@@ -143,9 +142,41 @@ async function main() {
             squished.fills = [previous.fill]
             frame.appendChild(squished)
         }
-        prevRect = slide
+    }
+
+    figma.currentPage = scrapbook
+
+    // add transitions
+    const frames = scrapbook.children as Array<FrameNode>
+    for (let i = 0; i < frames.length - 1; i++) {
+        const currentFrame = frames[i]
+        const nextFrame = frames[i + 1]
+        if (i == 0) {
+            scrapbook.flowStartingPoints = [{ nodeId: currentFrame.id, name: "Eeyore's Memories" }]
+        }
+
+        const reaction: Reaction = {
+            action: {
+                type: "NODE",
+                destinationId: nextFrame.id,
+                navigation: "NAVIGATE",
+                preserveScrollPosition: false,
+                transition: {
+                    type: "SMART_ANIMATE",
+                    easing: {
+                        type: "EASE_OUT"
+                    },
+                    duration: 1
+                }
+            },
+            trigger: {
+                type: "ON_CLICK"
+            }
+        }
+        currentFrame.reactions = [reaction]
     }
 }
+
 
 main().then(() => figma.closePlugin())
 
