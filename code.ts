@@ -98,6 +98,7 @@ async function main() {
 
     const scrapbook: PageNode = figma.createPage()
 
+    let prevRect: RectangleNode = null
     for (let i = 0; i < allSlideDatas.length; i++) {
         const current = allSlideDatas[i]
 
@@ -113,6 +114,7 @@ async function main() {
             const next = allSlideDatas[i + 1]
             // add the next image
             const slide = figma.createRectangle()
+            slide.name = "rect" + (i + 1)
             slide.x = 0
             slide.y = 0
             slide.resize(next.width, next.height)
@@ -121,6 +123,7 @@ async function main() {
         }
 
         const slide = figma.createRectangle()
+        slide.name = "rect" + i
         slide.x = 0
         slide.y = 0
         slide.resize(current.width, current.height)
@@ -133,12 +136,14 @@ async function main() {
             // add a squished previous frame
             const squeezeWdith = previous.width / 12
             const squished = figma.createRectangle()
+            squished.name = "rect" + (i - 1)
             squished.x = -(squeezeWdith + 20) // move the squish out of frame bounds
             squished.y = 0
             squished.resize(squeezeWdith, previous.height)
             squished.fills = [previous.fill]
             frame.appendChild(squished)
         }
+        prevRect = slide
     }
 }
 
