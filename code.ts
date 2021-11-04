@@ -29,7 +29,7 @@ async function convertFrameNodeToImageFill(frame: FrameNode): Promise<ImagePaint
     // our new PNG. This fill will get added to the frame.
     return {
         type: "IMAGE",
-        scaleMode: "FILL",
+        scaleMode: "CROP",
         imageHash: figma.createImage(pngBytes).hash
     }
 }
@@ -98,12 +98,16 @@ async function main() {
 
     const scrapbook: PageNode = figma.createPage()
     for (const data of allSlideDatas) {
+        const frame = figma.createFrame()
+        frame.x = data.locX
+        frame.y = data.locY
+        frame.resize(data.width, data.height)
+        scrapbook.appendChild(frame)
+
         const slide = figma.createRectangle()
-        slide.x = data.locX
-        slide.y = data.locY
-        slide.resize(data.width, data.height)
+        slide.resize(data.width / 3, data.height)
         slide.fills = [data.fill]
-        scrapbook.appendChild(slide)
+        frame.appendChild(slide)
     }
 }
 
