@@ -97,17 +97,48 @@ async function main() {
     const allSlideDatas: Array<SlideData> = await getAllSlideData(allFrameNodes)
 
     const scrapbook: PageNode = figma.createPage()
-    for (const data of allSlideDatas) {
+
+    for (let i = 0; i < allSlideDatas.length; i++) {
+        const current = allSlideDatas[i]
+
         const frame = figma.createFrame()
-        frame.x = data.locX
-        frame.y = data.locY
-        frame.resize(data.width, data.height)
+        frame.x = current.locX
+        frame.y = current.locY
+        frame.clipsContent = false
+        frame.resize(current.width, current.height)
         scrapbook.appendChild(frame)
 
+        // Last first
+        if (i < allSlideDatas.length - 1) {
+            const next = allSlideDatas[i + 1]
+            // add the next image
+            const slide = figma.createRectangle()
+            slide.x = 0
+            slide.y = 0
+            slide.resize(next.width, next.height)
+            slide.fills = [next.fill]
+            frame.appendChild(slide)
+        }
+
         const slide = figma.createRectangle()
-        slide.resize(data.width / 3, data.height)
-        slide.fills = [data.fill]
+        slide.x = 0
+        slide.y = 0
+        slide.resize(current.width, current.height)
+        slide.fills = [current.fill]
         frame.appendChild(slide)
+
+        // First last
+        if (i > 0) {
+            const previous = allSlideDatas[i - 1]
+            // add a squished previous frame
+            const squeezeWdith = previous.width / 12
+            const squished = figma.createRectangle()
+            squished.x = -(squeezeWdith + 20) // move the squish out of frame bounds
+            squished.y = 0
+            squished.resize(squeezeWdith, previous.height)
+            squished.fills = [previous.fill]
+            frame.appendChild(squished)
+        }
     }
 }
 
